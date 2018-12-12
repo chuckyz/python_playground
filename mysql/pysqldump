@@ -1,0 +1,52 @@
+#!/usr/bin/env python
+import pymysql, csv, argparse, textwrap
+
+def dumpit(db,table):
+    db = pymysql.connect(
+        read_default_file="~/.my.cnf", cursorclass=pymysql.cursors.SSCursor
+    )
+    cursor = db.cursor()
+    q = """SELECT * FROM {}.{}""".format(db,table)
+    cursor.execute(q)
+    while True:
+        rows = cursor.fetchmany(10000)
+        # rows == () doesn't work because it doesn't return an empty tuple?
+        if len(rows) == 0:
+            break
+        with open("/tmp/{}.csv".format(table), "a") as f:
+            writer = csv.writer(f)
+            for row in rows:
+                tx_row = list(row)
+                for i, field in enumerate(tx_row):
+                    if isinstance(field, str):
+                        if "\n" in field:
+                            tx_row[i] = field.replace("\n", " ")
+                        if "\x00" in field:
+                            tx_row[i] = field.replace("\x00", "")
+                        if field == "000-00-00 00:00:00":
+                            # Linux epoch. :)
+                            tx_row[i] = "1970-01-01 01:00:00"
+                    if field is None:
+                        tx_row[i] = "NULLCOLUMN"
+                writer.writerow(tx_row)
+
+# TO LOAD ON PGSQL SIDE:
+# psql -Upostgres -h 127.0.0.1 \
+#     -d mydb \
+#     -c "COPY myschema.\"mytable\" FROM '/tmp/mytable.csv' CSV NULL 'NULLCOLUMN' encoding 'UTF8';"
+
+def main():
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     description=textwrap.dedent('''
+                                     Dump a MySQL table into a CSV.
+                                     Uses ~/.my.cnf for connection details, ensure it's set.
+                                     Note: run this with PyPy or it'll be slow!'''))
+    parser.add_argument('-d', '--database', type=str, required=True, 
+                        help='MySQL database name')
+    parser.add_argument('-t', '--table', type=str, required=True,
+                        help='MySQL table name')
+    args = parser.parse_args()
+    dumpit(args.database,args.table)
+
+if __name__ == '__main__':
+    main()
