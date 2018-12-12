@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import boto3, argparse
-
+import botocore.exceptions
 
 def get_sg_metadata(sgs,old_cidr):
     """
@@ -15,8 +15,8 @@ def get_sg_metadata(sgs,old_cidr):
                 ports.append(
                     [
                         ingress.get("IpProtocol"),
-                        ingress.get("FromPort", "-1"),
-                        ingress.get("ToPort", "-1"),
+                        ingress.get("FromPort", -1),
+                        ingress.get("ToPort", -1),
                     ]
                 )
         sg_metadata[sg_id] = ports
@@ -31,6 +31,7 @@ def add_cidr_ingress(old_cidr, new_cidr):
     client = boto3.client("ec2")
     # aws ec2 describe-security-groups --filters Name=ip-permission.cidr,Values="some.cidr/range"
     resp = client.describe_security_groups(
+        # ,{"Name": "vpc-id", "Values": ["vpc-1234"]}
         Filters=[{"Name": "ip-permission.cidr", "Values": ["{}".format(old_cidr)]}]
     )
 
@@ -46,15 +47,19 @@ def add_cidr_ingress(old_cidr, new_cidr):
             }
             for x in sg_metadata[sg_id]
         ]
-        print(
-            'CidrIp="{}",GroupId="{}",IpPermissions={}'.format(
-                new_cidr, sg_id, ip_permissions
-            )
-        )
-        # for port in ports:
-        # 	resp = client.authorize_security_group_ingress(
-        # 			CidrIp='{}'.format(new_cidr),
-        # 		)
+        # print(
+        #     'GroupId="{}",IpPermissions={}'.format(
+        #         sg_id, ip_permissions
+        #     )
+        # )
+        try:
+            resp = client.authorize_security_group_ingress(
+            		GroupId='{}'.format(sg_id),
+                    IpPermissions=ip_permissions
+            	)
+            print("{} added to {}".format(new_cidr, sg_id))
+        except botocore.exceptions.ClientError:
+            print("{} already allowed to {}".format(new_cidr, sg_id))
     return sg_metadata.keys()
 
 
@@ -69,8 +74,6 @@ def main():
         sgs_modified = add_cidr_ingress(args.old_cidr, args.new_cidr)
     except Exception as e:
         raise
-        # for sg in sgs_modified:
-        # 	print("Added {} to {}".format(args.new_cidr, sg))
 
 
 if __name__ == "__main__":
