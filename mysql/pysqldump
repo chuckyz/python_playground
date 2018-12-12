@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 import pymysql, csv, argparse, textwrap
 
-def dumpit(db,table):
+
+def dumpit(db, table):
     db = pymysql.connect(
         read_default_file="~/.my.cnf", cursorclass=pymysql.cursors.SSCursor
     )
     cursor = db.cursor()
-    q = """SELECT * FROM {}.{}""".format(db,table)
+    q = """SELECT * FROM {}.{}""".format(db, table)
     cursor.execute(q)
     while True:
         rows = cursor.fetchmany(10000)
@@ -30,23 +31,32 @@ def dumpit(db,table):
                         tx_row[i] = "NULLCOLUMN"
                 writer.writerow(tx_row)
 
+
 # TO LOAD ON PGSQL SIDE:
 # psql -Upostgres -h 127.0.0.1 \
 #     -d mydb \
 #     -c "COPY myschema.\"mytable\" FROM '/tmp/mytable.csv' CSV NULL 'NULLCOLUMN' encoding 'UTF8';"
 
+
 def main():
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
-                                     description=textwrap.dedent('''
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=textwrap.dedent(
+            """
                                      Dump a MySQL table into a CSV.
                                      Uses ~/.my.cnf for connection details, ensure it's set.
-                                     Note: run this with PyPy or it'll be slow!'''))
-    parser.add_argument('-d', '--database', type=str, required=True, 
-                        help='MySQL database name')
-    parser.add_argument('-t', '--table', type=str, required=True,
-                        help='MySQL table name')
+                                     Note: run this with PyPy or it'll be slow!"""
+        ),
+    )
+    parser.add_argument(
+        "-d", "--database", type=str, required=True, help="MySQL database name"
+    )
+    parser.add_argument(
+        "-t", "--table", type=str, required=True, help="MySQL table name"
+    )
     args = parser.parse_args()
-    dumpit(args.database,args.table)
+    dumpit(args.database, args.table)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
