@@ -2,19 +2,12 @@
 import boto3, argparse
 
 
-def add_cidr_ingress(old_cidr, new_cidr):
+def get_sg_metadata(sgs,old_cidr):
     """
-	Adds a new cidr ingress to all security groups matching
-	with an existing cidr ingress
-	"""
-    client = boto3.client("ec2")
-    # aws ec2 describe-security-groups --filters Name=ip-permission.cidr,Values="some.cidr/range"
-    resp = client.describe_security_groups(
-        Filters=[{"Name": "ip-permission.cidr", "Values": ["{}".format(old_cidr)]}]
-    )
-
+    Get some metadata from SGs for use
+    """
     sg_metadata = {}
-    for rule in resp["SecurityGroups"]:
+    for rule in sgs:
         sg_id = rule["GroupId"]
         ports = []
         for ingress in rule["IpPermissions"]:
@@ -27,6 +20,21 @@ def add_cidr_ingress(old_cidr, new_cidr):
                     ]
                 )
         sg_metadata[sg_id] = ports
+    return sg_metadata
+
+
+def add_cidr_ingress(old_cidr, new_cidr):
+    """
+	Adds a new cidr ingress to all security groups matching
+	with an existing cidr ingress
+	"""
+    client = boto3.client("ec2")
+    # aws ec2 describe-security-groups --filters Name=ip-permission.cidr,Values="some.cidr/range"
+    resp = client.describe_security_groups(
+        Filters=[{"Name": "ip-permission.cidr", "Values": ["{}".format(old_cidr)]}]
+    )
+
+    sg_metadata = get_sg_metadata(resp["SecurityGroups"],old_cidr)
 
     for sg_id in sg_metadata.keys():
         ip_permissions = [
